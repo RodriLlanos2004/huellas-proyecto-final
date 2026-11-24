@@ -96,11 +96,13 @@ class _BloqueoPageState extends State<BloqueoPage> {
       canPop: false,
       child: Scaffold(
         body: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [tema.colorScheme.primaryContainer, tema.colorScheme.surface],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+          // Fondo: imagen propia de la app (asset) con un velo oscuro para dar contraste.
+          decoration: const BoxDecoration(
+            color: Color(0xFF0B3D36),
+            image: DecorationImage(
+              image: AssetImage('assets/images/fondo_huellas.jpg'),
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(Color(0x33000000), BlendMode.darken),
             ),
           ),
           child: SafeArea(
@@ -109,21 +111,17 @@ class _BloqueoPageState extends State<BloqueoPage> {
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    CircleAvatar(
-                      radius: 56,
-                      backgroundColor: tema.colorScheme.primary,
-                      child: Icon(Icons.fingerprint, size: 64, color: tema.colorScheme.onPrimary),
-                    ),
+                    Image.asset('assets/images/logo_huellas.png', width: 120, height: 120),
                     const SizedBox(height: 24),
                     Text('Huellas',
-                        style: tema.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        style: tema.textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold, color: Colors.white)),
                     const SizedBox(height: 8),
                     Text('Tu diario está protegido',
-                        style: tema.textTheme.bodyLarge
-                            ?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+                        style: tema.textTheme.bodyLarge?.copyWith(color: Colors.white70)),
                     const SizedBox(height: 40),
                     if (_disponibilidad == null || _autenticando)
-                      const CircularProgressIndicator()
+                      const CircularProgressIndicator(color: Colors.white)
                     else if (!sinMetodo)
                       FilledButton.icon(
                         onPressed: _autenticar,
@@ -133,7 +131,8 @@ class _BloqueoPageState extends State<BloqueoPage> {
                       ),
                     if (_mensaje != null) ...[
                       const SizedBox(height: 16),
-                      Text(_mensaje!, textAlign: TextAlign.center),
+                      Text(_mensaje!,
+                          textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)),
                     ],
                     if (sinMetodo) ...[
                       const SizedBox(height: 16),
