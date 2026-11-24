@@ -1,0 +1,55 @@
+# Infraestructura web de Huellas: MySQL + servicio web (FastAPI) + Adminer.
+#   docker compose up -d --build
+# API:      http://localhost:8000/docs
+# Adminer:  http://localhost:8090  (servidor: mysql, usuario: huellas_api)
+# Desde el emulador de Android la PC se ve como http://10.0.2.2:8000
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: huellas_api
+      MYSQL_PASSWORD: ${BD_CONTRASENA}
+    volumes:
+      - mysql-datos:/var/lib/mysql
+      # Se ejecuta solo la primera vez (volumen vacío): crea tablas, vista y catálogo.
+      - ./database/huellas_comunidad.sql:/docker-entrypoint-initdb.d/01_esquema.sql:ro
+      - ./database/permisos.sql:/docker-entrypoint-initdb.d/02_permisos.sql:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      BD_HOST: mysql
+      BD_USUARIO: huellas_api
+      BD_CONTRASENA: ${BD_CONTRASENA}
+      BD_NOMBRE: huellas_comunidad
+      CARPETA_FOTOS: /srv/fotos
+    volumes:
+      - fotos:/srv/fotos
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    depends_on:
+      - mysql
+
+volumes:
+  mysql-datos:
+  fotos:
