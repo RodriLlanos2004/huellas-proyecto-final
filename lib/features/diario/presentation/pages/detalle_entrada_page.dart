@@ -5,6 +5,7 @@ import '../../../../core/errores.dart';
 import '../../../../core/fechas.dart';
 import '../../domain/entrada_diario.dart';
 import '../widgets/animo_visual.dart';
+import '../widgets/categoria_visual.dart';
 import '../widgets/imagen_entrada.dart';
 import '../widgets/mapa_osm.dart';
 
@@ -115,6 +116,34 @@ class _DetalleEntradaPageState extends State<DetalleEntradaPage> {
                         avatar: Icon(_e.animo.icono, color: _e.animo.color),
                         label: Text(_e.animo.etiqueta),
                       ),
+                      Chip(
+                        avatar: Icon(_e.categoria.iconoMaterial, color: _e.categoria.colorMaterial),
+                        label: Text(_e.categoria.nombre),
+                      ),
+                      Chip(
+                        avatar: const Icon(Icons.star_rounded, color: Colors.amber),
+                        label: Text('${_e.calificacion}/10'),
+                      ),
+                      if (_e.gasto > 0)
+                        Chip(
+                          avatar: const Icon(Icons.payments_outlined),
+                          label: Text('\$${_e.gasto.toStringAsFixed(2)}'),
+                        ),
+                      if (_e.favorita)
+                        const Chip(
+                          avatar: Icon(Icons.favorite, color: Colors.pink),
+                          label: Text('Favorita'),
+                        ),
+                      if (_e.publicada)
+                        Chip(
+                          avatar: const Icon(Icons.cloud_done_outlined),
+                          label: Text('En la comunidad (#${_e.remotoId})'),
+                        )
+                      else if (_e.publicar)
+                        const Chip(
+                          avatar: Icon(Icons.cloud_upload_outlined),
+                          label: Text('Pendiente de publicar'),
+                        ),
                       if (_e.metadatos.usoDictado)
                         const Chip(avatar: Icon(Icons.mic_none), label: Text('Dictado por voz')),
                       if (_e.metadatos.origenImagen case final origen?)

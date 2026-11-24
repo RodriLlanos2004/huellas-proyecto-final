@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/fechas.dart';
 import '../../domain/entrada_diario.dart';
 import 'animo_visual.dart';
+import 'categoria_visual.dart';
 import 'imagen_entrada.dart';
 
 /// Tarjeta de una entrada en la lista. La miniatura vuela al detalle con Hero.
@@ -56,18 +57,26 @@ class TarjetaEntrada extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        if (entrada.tieneUbicacion) ...[
-                          Icon(Icons.place_outlined, size: 14, color: secundario),
-                          const SizedBox(width: 2),
-                          Flexible(
-                            child: Text(entrada.ubicacion!.coordenadasTexto,
-                                overflow: TextOverflow.ellipsis,
-                                style: tema.textTheme.labelSmall?.copyWith(color: secundario)),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
+                        Flexible(child: ChipCategoria.de(entrada.categoria)),
+                        const SizedBox(width: 8),
+                        if (entrada.tieneUbicacion)
+                          Icon(Icons.place_outlined, size: 16, color: secundario),
                         if (entrada.metadatos.usoDictado)
-                          Icon(Icons.mic_none, size: 14, color: secundario),
+                          Icon(Icons.mic_none, size: 16, color: secundario),
+                        const Spacer(),
+                        if (entrada.favorita)
+                          const Icon(Icons.favorite, size: 16, color: Colors.pink),
+                        if (entrada.publicada)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: Icon(Icons.cloud_done_outlined,
+                                size: 16, color: tema.colorScheme.primary),
+                          )
+                        else if (entrada.pendienteDePublicar)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: Icon(Icons.cloud_upload_outlined, size: 16, color: secundario),
+                          ),
                       ],
                     ),
                   ],

@@ -1,14 +1,18 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/dependencias.dart';
 import '../../../../core/dispositivo/servicio_imagenes.dart';
 import '../../../../core/errores.dart';
+import '../../../../core/fechas.dart';
+import '../../domain/categoria.dart';
 import '../../domain/entrada_diario.dart';
 import '../../domain/estado_animo.dart';
 import '../../domain/metadatos_entrada.dart';
 import '../../domain/ubicacion.dart';
+import '../widgets/categoria_visual.dart';
 import '../widgets/hoja_origen_imagen.dart';
 import '../widgets/panel_dictado.dart';
 import '../widgets/selector_animo.dart';
@@ -17,7 +21,9 @@ import '../widgets/selector_animo.dart';
 enum _DecisionGps { reintentar, abrirAjustes, sinUbicacion, cancelar }
 
 /// Formulario para crear una entrada: foto (cámara o galería), texto
-/// dictado por voz, estado de ánimo y ubicación GPS al guardar.
+/// dictado por voz, estado de ánimo, fecha y hora (selectores), categoría,
+/// campos numéricos (calificación y gasto), campos lógicos (favorita y
+/// publicar) y ubicación GPS al guardar.
 class FormularioEntradaPage extends StatefulWidget {
   const FormularioEntradaPage({super.key});
 
@@ -29,12 +35,21 @@ class _FormularioEntradaPageState extends State<FormularioEntradaPage> {
   final _formulario = GlobalKey<FormState>();
   final _titulo = TextEditingController();
   final _texto = TextEditingController();
+  final _calificacion = TextEditingController(text: '8');
+  final _gasto = TextEditingController();
 
   late final Dependencias _dep = AppScope.of(context);
 
   EstadoAnimo _animo = EstadoAnimo.feliz;
   ImagenSeleccionada? _imagen;
   bool _guardarUbicacion = true;
+
+  // Campos de fecha, catálogo, numéricos y lógicos.
+  DateTime _fecha = DateTime.now();
+  int _categoriaId = Categoria.idOtro;
+  bool _favorita = false;
+  bool _publicar = false;
+  late final Future<List<Categoria>> _categorias = _dep.repositorio.obtenerCategorias();
 
   // Estado del dictado.
   bool _escuchando = false;
@@ -64,6 +79,8 @@ class _FormularioEntradaPageState extends State<FormularioEntradaPage> {
     if (_escuchando) _dep.dictado.cancelar();
     _titulo.dispose();
     _texto.dispose();
+    _calificacion.dispose();
+    _gasto.dispose();
     super.dispose();
   }
 
@@ -178,8 +195,13 @@ class _FormularioEntradaPageState extends State<FormularioEntradaPage> {
       await _dep.repositorio.guardar(EntradaDiario(
         titulo: _titulo.text.trim(),
         texto: _texto.text.trim(),
-        fecha: DateTime.now(),
+        fecha: _fecha,
         animo: _animo,
+        categoriaId: _categoriaId,
+        calificacion: int.parse(_calificacion.text),
+        gasto: _gastoIngresado,
+        favorita: _favorita,
+        publicar: _publicar,
         imagen: nombreImagen,
         ubicacion: ubicacion,
         metadatos: MetadatosEntrada(
@@ -259,6 +281,50 @@ class _FormularioEntradaPageState extends State<FormularioEntradaPage> {
         ],
       ),
     );
+  }
+
+  // ---------------------------------------------------------------- Fecha
+
+  /// Selector de fecha y luego de hora. No se permiten fechas futuras (RN-03).
+  Future<void> _elegirFecha() async {
+    final ahora = DateTime.now();
+    final dia = await showDatePicker(
+      context: context,
+      initialDate: _fecha,
+      firstDate: DateTime(2000),
+      lastDate: ahora,
+      helpText: '¿Qué día fue?',
+    );
+    if (dia == null || !mounted) return;
+    final hora = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_fecha),
+      helpText: '¿A qué hora?',
+    );
+    if (!mounted) return;
+    var elegida = DateTime(dia.year, dia.month, dia.day,
+        hora?.hour ?? _fecha.hour, hora?.minute ?? _fecha.minute);
+    if (elegida.isAfter(ahora)) elegida = ahora;
+    setState(() => _fecha = elegida);
+  }
+
+  double get _gastoIngresado => double.tryParse(_gasto.text.replaceAll(',', '.')) ?? 0;
+
+  static String? _validarCalificacion(String? v) {
+    final n = int.tryParse(v ?? '');
+    if (n == null) return 'Escribe un número';
+    if (n < EntradaDiario.calificacionMinima || n > EntradaDiario.calificacionMaxima) {
+      return 'Debe ser de 1 a 10';
+    }
+    return null;
+  }
+
+  static String? _validarGasto(String? v) {
+    if (v == null || v.trim().isEmpty) return null; // Vacío equivale a 0.
+    final n = double.tryParse(v.replaceAll(',', '.'));
+    if (n == null) return 'Número no válido';
+    if (n < 0 || n > EntradaDiario.gastoMaximo) return 'Máximo 100,000';
+    return null;
   }
 
   // ---------------------------------------------------------------- Avisos
@@ -381,7 +447,109 @@ class _FormularioEntradaPageState extends State<FormularioEntradaPage> {
                   Text('¿Cómo te sentiste?', style: tema.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   SelectorAnimo(valor: _animo, alCambiar: (a) => setState(() => _animo = a)),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
+                  Text('Detalles del día', style: tema.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.event_outlined),
+                      title: Text('${Fechas.larga(_fecha)}, ${Fechas.hora(_fecha)}'),
+                      subtitle: const Text('Fecha y hora del recuerdo'),
+                      trailing: const Icon(Icons.edit_calendar_outlined),
+                      onTap: _guardando ? null : _elegirFecha,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FutureBuilder<List<Categoria>>(
+                    future: _categorias,
+                    builder: (context, snapshot) {
+                      // Si SQLite falla, se usa el catálogo fijo para no bloquear el formulario.
+                      final categorias = snapshot.data ?? Categoria.predeterminadas;
+                      return DropdownButtonFormField<int>(
+                        initialValue: _categoriaId,
+                        decoration: const InputDecoration(
+                          labelText: 'Categoría',
+                          prefixIcon: Icon(Icons.category_outlined),
+                        ),
+                        items: [
+                          for (final c in categorias)
+                            DropdownMenuItem(
+                              value: c.id,
+                              child: Row(
+                                children: [
+                                  Icon(c.iconoMaterial, color: c.colorMaterial, size: 20),
+                                  const SizedBox(width: 10),
+                                  Text(c.nombre),
+                                ],
+                              ),
+                            ),
+                        ],
+                        onChanged: _guardando ? null : (v) => setState(() => _categoriaId = v ?? _categoriaId),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _calificacion,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(2),
+                          ],
+                          decoration: const InputDecoration(
+                            labelText: 'Calificación',
+                            helperText: 'Del 1 al 10',
+                            prefixIcon: Icon(Icons.star_half_outlined),
+                          ),
+                          validator: _validarCalificacion,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _gasto,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d{0,6}([.,]\d{0,2})?')),
+                          ],
+                          decoration: const InputDecoration(
+                            labelText: 'Gasto',
+                            helperText: 'En pesos',
+                            prefixIcon: Icon(Icons.payments_outlined),
+                            hintText: '0.00',
+                          ),
+                          validator: _validarGasto,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          secondary: Icon(_favorita ? Icons.favorite : Icons.favorite_border,
+                              color: _favorita ? Colors.pink : null),
+                          title: const Text('Marcar como favorita'),
+                          value: _favorita,
+                          onChanged: _guardando ? null : (v) => setState(() => _favorita = v),
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        CheckboxListTile(
+                          secondary: const Icon(Icons.cloud_upload_outlined),
+                          title: const Text('Publicar en Huellas Comunidad'),
+                          subtitle: const Text('Se sube al servidor cuando sincronices'),
+                          value: _publicar,
+                          onChanged: _guardando ? null : (v) => setState(() => _publicar = v ?? false),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Card(
                     child: SwitchListTile(
                       secondary: const Icon(Icons.my_location),

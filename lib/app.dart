@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/dependencias.dart';
 import 'core/rutas.dart';
 import 'core/tema.dart';
 import 'features/ajustes/presentation/ajustes_page.dart';
+import 'features/comunidad/domain/publicacion.dart';
+import 'features/comunidad/presentation/pages/comunidad_page.dart';
+import 'features/comunidad/presentation/pages/detalle_publicacion_page.dart';
+import 'features/comunidad/presentation/pages/sincronizaciones_page.dart';
 import 'features/diario/domain/entrada_diario.dart';
 import 'features/diario/presentation/pages/detalle_entrada_page.dart';
 import 'features/diario/presentation/pages/formulario_entrada_page.dart';
@@ -14,8 +19,12 @@ import 'features/seguridad/presentation/bloqueo_page.dart';
 /// Widget raíz. Configura el tema, las rutas nombradas y el bloqueo al volver
 /// de segundo plano (WidgetsBindingObserver).
 class HuellasApp extends StatefulWidget {
-  const HuellasApp({super.key, required this.dependencias});
+  const HuellasApp({super.key, required this.dependencias, this.rutaInicial});
   final Dependencias dependencias;
+
+  /// Permite a las pruebas abrir una pantalla concreta. Si es null se decide
+  /// entre bloqueo o lista según las preferencias.
+  final String? rutaInicial;
 
   @override
   State<HuellasApp> createState() => _HuellasAppState();
@@ -81,6 +90,15 @@ class _HuellasAppState extends State<HuellasApp> with WidgetsBindingObserver {
         pagina = const MapaRecuerdosPage();
       case Rutas.ajustes:
         pagina = const AjustesPage();
+      case Rutas.comunidad:
+        pagina = const ComunidadPage();
+      case Rutas.publicacion:
+        // La publicación viaja como argumento desde la lista o la cuadrícula.
+        final publicacion = ajustes.arguments;
+        if (publicacion is! Publicacion) return _rutaDesconocida(ajustes);
+        pagina = DetallePublicacionPage(publicacion: publicacion);
+      case Rutas.sincronizaciones:
+        pagina = const SincronizacionesPage();
       default:
         return _rutaDesconocida(ajustes);
     }
@@ -111,8 +129,13 @@ class _HuellasAppState extends State<HuellasApp> with WidgetsBindingObserver {
         theme: TemaHuellas.claro(),
         darkTheme: TemaHuellas.oscuro(),
         navigatorKey: _navegador,
+        // Textos de Material (selectores de fecha y hora, tooltips) en español.
+        locale: const Locale('es', 'MX'),
+        supportedLocales: const [Locale('es', 'MX'), Locale('es')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         navigatorObservers: [observadorRutas],
-        initialRoute: dep.preferencias.bloqueoActivo ? Rutas.bloqueo : Rutas.lista,
+        initialRoute:
+            widget.rutaInicial ?? (dep.preferencias.bloqueoActivo ? Rutas.bloqueo : Rutas.lista),
         // Por defecto, una ruta inicial "/bloqueo" apilaría también "/" debajo.
         // Así solo se crea la pantalla pedida y la lista no se carga antes de autenticar.
         onGenerateInitialRoutes: (inicial) => [_generarRuta(RouteSettings(name: inicial))],
