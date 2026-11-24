@@ -1,72 +1,106 @@
-# Huellas · Diario personal con foto, voz y ubicación
+# Huellas · Diario personal con comunidad web
 
-Aplicación Flutter para el proyecto de **Programación de Dispositivos Móviles** (Universidad Anáhuac Mayab).
-Cada día se registra con una foto (cámara o galería), texto dictado por voz, el estado de ánimo y la
-ubicación GPS donde se escribió. Todo se guarda localmente en SQLite y el diario está protegido con huella digital.
+Proyecto final de **Programación de Dispositivos Móviles** (Universidad Anáhuac Mayab).
+Autor: **Rodrigo Sebastián Llanos Yañez**.
 
-## Funcionalidades
+Huellas es una app Flutter para registrar cada día con foto (cámara o galería), texto dictado por voz,
+estado de ánimo, categoría, calificación, gasto y la ubicación GPS. Todo se guarda en el teléfono
+(SQLite + archivos planos) y el usuario puede **publicar** las entradas que elija en
+**Huellas Comunidad**, un servicio web REST (Python · FastAPI) que las registra en **MySQL**.
+La app consulta esa base de datos para mostrar la lista, la galería, el detalle y las estadísticas
+de la comunidad.
 
-| Requisito | Implementación |
+```
+huellas-proyecto-final/
+├── lib/                  App Flutter (Dart) · arquitectura Feature-First
+├── test/                 Pruebas unitarias, de SQLite y de widgets
+├── backend/              Servicio web (artefactos web): FastAPI + PyMySQL
+│   ├── app/main.py       Endpoints REST
+│   ├── app/repositorio.py Sentencias SQL parametrizadas
+│   ├── app/esquemas.py   Validaciones (reglas de negocio)
+│   ├── tests/            Pruebas de integración contra MySQL
+│   └── Dockerfile
+├── database/
+│   ├── huellas_comunidad.sql   Script de la base de datos (tablas, vista, catálogo)
+│   └── permisos.sql            Usuario de la API con permisos mínimos
+├── docker-compose.yml    MySQL 8.4 + API + Adminer
+└── docs/                 Documentación (PDF), diagramas y capturas del emulador
+```
+
+## Cumplimiento del enunciado
+
+| Lineamiento | Dónde está |
 |---|---|
-| Scaffold, AppBar y Drawer | `ListaDiarioPage`, `MapaRecuerdosPage` y `AjustesPage` comparten `AppDrawer` (NavigationDrawer de Material 3). |
-| Routes y Navigator | Rutas nombradas en `core/rutas.dart` y generador `onGenerateRoute` en `app.dart` (`/bloqueo`, `/`, `/detalle`, `/nueva`, `/mapa`, `/ajustes`). |
-| Animaciones | `Hero` de la miniatura de la lista a la imagen del detalle; `SliverAppBar` expandible; panel de dictado con `AnimatedContainer` y `AnimatedSize`. |
-| Persistencia | SQLite (`sqflite`) con la tabla `entradas`: texto, fecha, ánimo, nombre de la imagen, latitud, longitud, precisión y metadatos en JSON. SharedPreferences solo para ajustes. |
-| Manejo de errores | `try-catch` en repositorio, servicios de hardware y pantallas; jerarquía `FallaApp` con mensajes para el usuario; `FutureBuilder` con estados de carga, vacío y error con reintento. |
-| Cámara y galería | `image_picker`; la foto se copia a la carpeta de documentos de la app. Recupera la foto si Android cierra la app con la cámara abierta. |
-| Micrófono y dictado | `speech_to_text` (captura del micrófono + reconocimiento en español) con indicador de nivel de sonido y texto parcial. |
-| GPS y mapas | `geolocator` captura la posición al guardar (con límite de tiempo y respaldo); `flutter_map` muestra un mapa interactivo de OpenStreetMap y `url_launcher` abre Google Maps. |
-| Login biométrico | `local_auth` al abrir la app y al volver de segundo plano después de 1 minuto; no se puede saltar con el botón Atrás. |
-| Permisos negados | Diálogos con explicación, opción de guardar sin ubicación y acceso directo a los ajustes del sistema (`permission_handler`). |
-| Serialización JSON | `toJson`/`fromJson` en las entidades y exportación de respaldo completo desde Ajustes. |
-
-## Arquitectura
-
-Feature-First con capas (dominio, datos, presentación) e inversión de dependencias:
-
-```
-lib/
-├── main.dart                 # Raíz de composición: crea las implementaciones concretas
-├── app.dart                  # MaterialApp, rutas nombradas y bloqueo por ciclo de vida
-├── core/
-│   ├── dependencias.dart     # Contenedor + AppScope (InheritedWidget)
-│   ├── errores.dart          # FallaApp y subtipos
-│   ├── rutas.dart · tema.dart · fechas.dart
-│   ├── dispositivo/          # Interfaces + implementaciones de hardware
-│   │   ├── servicio_ubicacion.dart   (geolocator)
-│   │   ├── servicio_dictado.dart     (speech_to_text)
-│   │   ├── servicio_imagenes.dart    (image_picker)
-│   │   ├── servicio_mapas_externos.dart (url_launcher)
-│   │   └── servicio_permisos.dart    (permission_handler)
-│   └── widgets/              # AppDrawer y estados de vista
-└── features/
-    ├── diario/
-    │   ├── domain/           # EntradaDiario, Ubicacion, MetadatosEntrada, RepositorioDiario
-    │   ├── data/             # SQLite, almacén de imágenes, respaldo JSON
-    │   └── presentation/     # Páginas y widgets
-    ├── seguridad/            # local_auth, preferencias y pantalla de bloqueo
-    └── ajustes/
-```
-
-Las pantallas dependen solo de interfaces (`RepositorioDiario`, `ServicioUbicacion`, `ServicioDictado`…);
-por eso las pruebas de widgets usan versiones falsas sin tocar hardware real.
+| Documento de requisitos y reglas de negocio | `docs/Documentacion_Huellas_Proyecto_Final.pdf` |
+| Uso de imágenes | Fotos del diario (archivos locales), fotos de la comunidad (`Image.network`), fondo y logotipo propios en `assets/images/` (Drawer, bloqueo, comunidad), íconos de Material |
+| Widgets con desplazamiento | `ListView` (diario, comunidad, historial), `GridView` (galería de la comunidad), `CustomScrollView`/`SliverAppBar` (detalles), filtro horizontal de categorías |
+| Navegación entre pantallas | Rutas nombradas (`core/rutas.dart`, `app.dart`), `Drawer`, `TabBar`, diálogos |
+| Información entre pantallas | `EntradaDiario` y `Publicacion` viajan como `arguments`; el formulario y los detalles devuelven resultados con `Navigator.pop` |
+| Formularios | Texto (título, relato, alias, URL), numéricos (calificación 1-10, gasto), lógicos (`Switch` favorita y ubicación, `Checkbox` publicar), selectores de fecha y hora (`showDatePicker`, `showTimePicker`), lista desplegable de categoría |
+| Gadgets (al menos 2) | Cámara, GPS, micrófono y sensor biométrico |
+| Almacenamiento: ≥3 entidades | SQLite: `entradas`, `categorias`, `sincronizaciones` (`features/diario/data/base_datos_diario.dart`) |
+| Almacenamiento: archivo plano | `bitacora_sincronizacion.txt` (valores separados por `;`) y respaldo `huellas_*.json` |
+| Registro en BD vía servicios web | `POST /api/usuarios`, `POST /api/publicaciones` (multipart), `POST /api/publicaciones/{id}/me-gusta`, `DELETE /api/publicaciones/{id}` |
+| Consulta y visualización | `GET /api/publicaciones` (filtros), `GET /api/publicaciones/{id}`, `GET /api/estadisticas` |
 
 ## Puesta en marcha
 
-Probado con Flutter 3.44 (canal estable) en un emulador Android 17 (API 37).
+### 1. Base de datos y servicio web
+
+Requiere Docker Desktop.
+
+```bash
+cp .env.example .env          # y cambia las contraseñas
+docker compose up -d --build
+```
+
+* API y documentación interactiva: <http://localhost:8000/docs>
+* Adminer (ver la base de datos): <http://localhost:8090> · servidor `mysql`, usuario `huellas_api`
+* Datos de demostración (opcional):
+  `docker compose cp backend/scripts/datos_demo.py api:/tmp/demo.py && docker compose exec api python /tmp/demo.py`
+
+Sin Docker: ejecutar `database/huellas_comunidad.sql` en MySQL 8, crear el usuario de
+`database/permisos.sql`, y en `backend/`:
+
+```bash
+pip install -r requirements.txt
+BD_CONTRASENA=... uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### 2. App
 
 ```bash
 flutter pub get
-flutter analyze        # sin advertencias
-flutter test           # 25 pruebas: serialización, SQLite real en memoria y widgets
+flutter test
 flutter run
 ```
 
-En el emulador: configurar un PIN y una huella en *Ajustes > Seguridad*, fijar la ubicación desde
-*Extended controls > Location* (o `adb emu geo fix <lng> <lat>`) y, para dictar, activar
-*Virtual microphone uses host audio input*.
+En el emulador de Android la computadora se ve como `http://10.0.2.2:8000` (valor por defecto).
+En un teléfono real se cambia en **Ajustes › Servidor** por la IP de la computadora en la red Wi-Fi
+(y se agrega esa IP a `android/app/src/main/res/xml/network_security_config.xml`, porque Android
+bloquea HTTP sin cifrar).
 
-## Documentación
+### 3. Pruebas del servicio web
 
-- `docs/reporte_tecnico.pdf`: arquitectura (diagramas de clases y flujo de datos), justificación y evidencias.
-- `docs/capturas/`: capturas de pantalla de las pruebas en el emulador.
+```bash
+cd backend
+pip install -r requirements-dev.txt
+BD_CONTRASENA=... python -m pytest -q     # 21 pruebas contra MySQL real
+```
+
+## Arquitectura
+
+```
+lib/
+├── main.dart                     Raíz de composición (elige implementaciones)
+├── app.dart                      MaterialApp, rutas nombradas, español, bloqueo por ciclo de vida
+├── core/                         Dependencias (AppScope), errores (FallaApp/FallaRed), servicios de hardware
+└── features/
+    ├── diario/                   Entradas, categorías, sincronizaciones (SQLite) + pantallas del diario
+    ├── comunidad/                Cliente HTTP, sincronización, bitácora y pantallas de la comunidad
+    ├── seguridad/                Biometría y preferencias (alias, servidor, id del dispositivo)
+    └── ajustes/
+```
+
+Las pantallas dependen de interfaces (`RepositorioDiario`, `RepositorioComunidad`…); las pruebas
+usan versiones falsas sin red ni hardware.
