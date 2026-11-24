@@ -1,5 +1,8 @@
 import 'package:flutter/widgets.dart';
 
+import '../features/comunidad/data/bitacora_sincronizacion.dart';
+import '../features/comunidad/data/servicio_sincronizacion.dart';
+import '../features/comunidad/domain/repositorio_comunidad.dart';
 import '../features/diario/data/almacen_imagenes.dart';
 import '../features/diario/data/servicio_respaldo.dart';
 import '../features/diario/domain/repositorio_diario.dart';
@@ -28,6 +31,8 @@ class Dependencias {
     required this.imagenes,
     required this.mapas,
     required this.permisos,
+    required this.comunidad,
+    required this.bitacora,
   });
 
   final RepositorioDiario repositorio;
@@ -40,6 +45,21 @@ class Dependencias {
   final ServicioImagenes imagenes;
   final ServicioMapasExternos mapas;
   final ServicioPermisos permisos;
+
+  /// Servicio web de Huellas Comunidad (HTTP + MySQL en el servidor).
+  final RepositorioComunidad comunidad;
+
+  /// Archivo plano con el historial de sincronizaciones.
+  final BitacoraSincronizacion bitacora;
+
+  /// Se arma con las demás dependencias; no necesita pasarse al constructor.
+  late final ServicioSincronizacion sincronizacion = ServicioSincronizacion(
+    diario: repositorio,
+    comunidad: comunidad,
+    preferencias: preferencias,
+    imagenes: imagenesGuardadas,
+    bitacora: bitacora,
+  );
 
   /// Indica si la pantalla de bloqueo ya está visible, para no apilarla dos veces.
   final ValueNotifier<bool> bloqueoVisible = ValueNotifier<bool>(false);

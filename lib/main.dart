@@ -9,6 +9,8 @@ import 'core/dispositivo/servicio_imagenes.dart';
 import 'core/dispositivo/servicio_mapas_externos.dart';
 import 'core/dispositivo/servicio_permisos.dart';
 import 'core/dispositivo/servicio_ubicacion.dart';
+import 'features/comunidad/data/api_comunidad_http.dart';
+import 'features/comunidad/data/bitacora_sincronizacion.dart';
 import 'features/diario/data/almacen_imagenes.dart';
 import 'features/diario/data/base_datos_diario.dart';
 import 'features/diario/data/repositorio_diario_sqlite.dart';
@@ -30,18 +32,21 @@ Future<void> main() async {
     final imagenes = AlmacenImagenes();
     await imagenes.inicializar();
     final repositorio = RepositorioDiarioSqlite(BaseDatosDiario());
+    final preferencias = await PreferenciasCompartidas.cargar();
 
     final dependencias = Dependencias(
       repositorio: repositorio,
       imagenesGuardadas: imagenes,
       respaldo: ServicioRespaldo(repositorio),
-      preferencias: await PreferenciasCompartidas.cargar(),
+      preferencias: preferencias,
       biometria: ServicioBiometricoLocalAuth(),
       ubicacion: ServicioUbicacionGeolocator(),
       dictado: ServicioDictadoSpeech(),
       imagenes: ServicioImagenesPicker(),
       mapas: ServicioMapasUrlLauncher(),
       permisos: ServicioPermisosSistema(),
+      comunidad: ApiComunidadHttp(servidor: () => preferencias.servidorUrl),
+      bitacora: BitacoraSincronizacion(),
     );
     runApp(HuellasApp(dependencias: dependencias));
   } on Object catch (e) {

@@ -1,7 +1,8 @@
 /// Jerarquía de fallas de la aplicación.
 ///
 /// Las capas de datos y de dispositivo traducen las excepciones técnicas
-/// (PlatformException, DatabaseException, TimeoutException, FileSystemException)
+/// (PlatformException, DatabaseException, TimeoutException, FileSystemException,
+/// SocketException, ClientException)
 /// a una de estas fallas, con un mensaje en español que la interfaz puede
 /// mostrar tal cual. Así la UI nunca depende de detalles de un plugin concreto
 /// (principio de inversión de dependencias) y un error nunca cierra la app.
@@ -43,6 +44,17 @@ final class FallaHardware extends FallaApp {
 /// Error al leer o escribir datos locales (SQLite o archivos).
 final class FallaAlmacenamiento extends FallaApp {
   const FallaAlmacenamiento(super.mensaje, [super.causa]);
+}
+
+/// Falló la comunicación con el servicio web: sin red, servidor apagado,
+/// tiempo agotado o una respuesta de error (4xx/5xx).
+final class FallaRed extends FallaApp {
+  const FallaRed(String mensaje, {this.codigo, Object? causa}) : super(mensaje, causa);
+
+  /// Código HTTP si el servidor respondió; null si ni siquiera hubo respuesta.
+  final int? codigo;
+
+  bool get sinConexion => codigo == null;
 }
 
 /// Convierte cualquier error en un mensaje presentable.

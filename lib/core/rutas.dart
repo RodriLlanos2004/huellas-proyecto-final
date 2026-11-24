@@ -12,6 +12,9 @@ abstract final class Rutas {
   static const nueva = '/nueva';
   static const mapa = '/mapa';
   static const ajustes = '/ajustes';
+  static const comunidad = '/comunidad';
+  static const publicacion = '/comunidad/publicacion';
+  static const sincronizaciones = '/sincronizaciones';
 }
 
 /// Observador global de rutas. La lista del diario lo usa para recargarse

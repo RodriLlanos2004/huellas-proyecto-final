@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Mapas (teselas de OpenStreetMap) y reconocimiento de voz en línea. -->
+    <!-- También para consumir el servicio web de Huellas Comunidad. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Dictado por voz: captura de audio del micrófono. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -13,7 +14,8 @@
     <application
         android:label="Huellas"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"

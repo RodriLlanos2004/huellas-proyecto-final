@@ -7,6 +7,13 @@ import 'package:huellas/core/dispositivo/servicio_mapas_externos.dart';
 import 'package:huellas/core/dispositivo/servicio_permisos.dart';
 import 'package:huellas/core/dispositivo/servicio_ubicacion.dart';
 import 'package:huellas/core/errores.dart';
+import 'package:huellas/features/comunidad/data/bitacora_sincronizacion.dart';
+import 'package:huellas/features/comunidad/domain/estadisticas_comunidad.dart';
+import 'package:huellas/features/comunidad/domain/publicacion.dart';
+import 'package:huellas/features/comunidad/domain/repositorio_comunidad.dart';
+import 'package:huellas/features/diario/domain/categoria.dart';
+import 'package:huellas/features/diario/domain/estado_animo.dart';
+import 'package:huellas/features/diario/domain/registro_sincronizacion.dart';
 import 'package:huellas/features/diario/data/almacen_imagenes.dart';
 import 'package:huellas/features/diario/data/servicio_respaldo.dart';
 import 'package:huellas/features/diario/domain/entrada_diario.dart';
@@ -47,11 +54,56 @@ class RepositorioFalso implements RepositorioDiario {
 
   @override
   Future<void> eliminar(int id) async => entradas.removeWhere((e) => e.id == id);
+
+  @override
+  Future<List<EntradaDiario>> pendientesDePublicar() async =>
+      entradas.where((e) => e.pendienteDePublicar).toList();
+
+  @override
+  Future<void> marcarPublicada(int id, int remotoId) async {
+    final i = entradas.indexWhere((e) => e.id == id);
+    entradas[i] = entradas[i].copyWith(remotoId: remotoId);
+  }
+
+  @override
+  Future<List<Categoria>> obtenerCategorias() async => Categoria.predeterminadas;
+
+  final sincronizaciones = <RegistroSincronizacion>[];
+
+  @override
+  Future<RegistroSincronizacion> registrarSincronizacion(RegistroSincronizacion r) async {
+    sincronizaciones.add(r);
+    return r;
+  }
+
+  @override
+  Future<List<RegistroSincronizacion>> obtenerSincronizaciones() async =>
+      sincronizaciones.reversed.toList();
 }
 
 class PreferenciasEnMemoria implements PreferenciasApp {
   @override
   bool bloqueoActivo = false;
+  @override
+  String servidorUrl = 'http://servidor.prueba';
+  @override
+  String dispositivoId = 'abcdef0123456789';
+  @override
+  String? alias;
+  @override
+  int? usuarioRemotoId;
+  @override
+  Future<void> guardarServidorUrl(String url) async {
+    servidorUrl = url;
+    usuarioRemotoId = null;
+  }
+
+  @override
+  Future<void> guardarUsuario({required String alias, required int id}) async {
+    this.alias = alias;
+    usuarioRemotoId = id;
+  }
+
   @override
   DateTime? ultimoRespaldo;
   @override
@@ -139,8 +191,102 @@ class PermisosFalsos implements ServicioPermisos {
   Future<bool> abrirAjustesUbicacion() async => ++aperturas > 0;
 }
 
+/// Servicio web en memoria. Si [sinConexion] es true, todo falla como sin red.
+class ComunidadFalsa implements RepositorioComunidad {
+  ComunidadFalsa([List<Publicacion>? iniciales]) : publicaciones = [...?iniciales];
+  final List<Publicacion> publicaciones;
+  bool sinConexion = false;
+  final publicadas = <EntradaDiario>[];
+  int _siguiente = 500;
+
+  void _quizaFallar() {
+    if (sinConexion) throw const FallaRed('No hay conexión con el servidor de Huellas Comunidad.');
+  }
+
+  @override
+  Future<String> probarConexion() async {
+    _quizaFallar();
+    return '8.4.0';
+  }
+
+  @override
+  Future<UsuarioComunidad> registrarUsuario({required String alias, required String dispositivo}) async {
+    _quizaFallar();
+    return UsuarioComunidad(id: 42, alias: alias);
+  }
+
+  @override
+  Future<PaginaPublicaciones> obtenerPublicaciones({int? categoriaId, String? texto, int? usuarioId}) async {
+    _quizaFallar();
+    final lista = publicaciones.where((p) => categoriaId == null || p.categoriaId == categoriaId).toList();
+    return PaginaPublicaciones(total: lista.length, elementos: lista);
+  }
+
+  @override
+  Future<Publicacion> obtenerPublicacion(int id) async => publicaciones.firstWhere((p) => p.id == id);
+
+  @override
+  Future<Publicacion> publicar(EntradaDiario entrada, {required int usuarioId, File? foto}) async {
+    _quizaFallar();
+    publicadas.add(entrada);
+    final p = publicacionDeEjemplo(id: _siguiente++, titulo: entrada.titulo);
+    publicaciones.add(p);
+    return p;
+  }
+
+  @override
+  Future<EstadoMeGusta> alternarMeGusta(int publicacionId, {required int usuarioId}) async =>
+      const EstadoMeGusta(total: 1, marcado: true);
+
+  @override
+  Future<void> eliminar(int publicacionId, {required int usuarioId}) async =>
+      publicaciones.removeWhere((p) => p.id == publicacionId);
+
+  @override
+  Future<EstadisticasComunidad> obtenerEstadisticas() async {
+    _quizaFallar();
+    return EstadisticasComunidad(
+      totalPublicaciones: publicaciones.length,
+      totalUsuarios: 1,
+      promedioCalificacion: 9,
+      gastoTotal: 120,
+      porCategoria: const [],
+      porAnimo: const {'feliz': 1},
+    );
+  }
+}
+
+Publicacion publicacionDeEjemplo({int id = 1, String titulo = 'Cenote Xlacah', int categoriaId = 1}) =>
+    Publicacion(
+      id: id,
+      usuarioId: 7,
+      alias: 'ana',
+      categoriaId: categoriaId,
+      categoria: Categoria.porId(categoriaId).nombre,
+      categoriaColor: 0xFF00796B,
+      titulo: titulo,
+      texto: 'Nadamos en el cenote de Dzibilchaltún.',
+      fecha: DateTime(2026, 11, 20, 12),
+      animo: EstadoAnimo.feliz,
+      calificacion: 9,
+      gasto: 120,
+      favorita: true,
+      meGusta: 3,
+      publicadoEn: DateTime(2026, 11, 21),
+    );
+
+/// Bitácora sin disco: en testWidgets el reloj es falso y la E/S real no termina.
+class BitacoraEnMemoria extends BitacoraSincronizacion {
+  final lineas = <String>[];
+  @override
+  Future<void> agregar(RegistroSincronizacion registro) async => lineas.add(registro.aLineaBitacora());
+  @override
+  Future<String> leer() async => lineas.join('\n');
+}
+
 /// Construye un contenedor de dependencias completamente falso.
 Dependencias dependenciasFalsas({
+  ComunidadFalsa? comunidad,
   RepositorioFalso? repositorio,
   UbicacionFalsa? ubicacion,
   DictadoFalso? dictado,
@@ -159,6 +305,8 @@ Dependencias dependenciasFalsas({
     imagenes: ImagenesFalsas(),
     mapas: MapasFalsos(),
     permisos: PermisosFalsos(),
+    comunidad: comunidad ?? ComunidadFalsa(),
+    bitacora: BitacoraEnMemoria(),
   );
 }
 

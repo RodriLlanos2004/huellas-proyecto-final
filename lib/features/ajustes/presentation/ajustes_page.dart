@@ -5,9 +5,10 @@ import '../../../core/errores.dart';
 import '../../../core/fechas.dart';
 import '../../../core/rutas.dart';
 import '../../../core/widgets/app_drawer.dart';
+import '../../comunidad/presentation/widgets/dialogo_alias.dart';
 import '../../seguridad/data/servicio_biometrico.dart';
 
-/// Ajustes: bloqueo biométrico, respaldo JSON y permisos.
+/// Ajustes: bloqueo biométrico, comunidad (servidor y alias), respaldo JSON y permisos.
 class AjustesPage extends StatefulWidget {
   const AjustesPage({super.key});
 
@@ -18,6 +19,7 @@ class AjustesPage extends StatefulWidget {
 class _AjustesPageState extends State<AjustesPage> {
   late final Dependencias _dep = AppScope.of(context);
   bool _exportando = false;
+  bool _probando = false;
 
   void _avisar(String mensaje) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensaje)));
@@ -39,6 +41,79 @@ class _AjustesPageState extends State<AjustesPage> {
     await _dep.preferencias.guardarBloqueoActivo(activar);
     if (mounted) setState(() {});
   }
+
+  // ---------------------------------------------------------------- Comunidad
+
+  static String? _validarUrl(String? v) {
+    final uri = Uri.tryParse(v?.trim() ?? '');
+    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https') || uri.host.isEmpty) {
+      return 'Escribe una dirección como http://10.0.2.2:8000';
+    }
+    return null;
+  }
+
+  Future<void> _editarServidor() async {
+    final control = TextEditingController(text: _dep.preferencias.servidorUrl);
+    final clave = GlobalKey<FormState>();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.dns_outlined),
+        title: const Text('Servidor de la comunidad'),
+        content: Form(
+          key: clave,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('En el emulador, la computadora es 10.0.2.2. En un teléfono real, '
+                  'usa la IP de la computadora en tu red Wi-Fi.'),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: control,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(labelText: 'URL del servicio web'),
+                validator: _validarUrl,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              if (clave.currentState!.validate()) Navigator.pop(context, control.text.trim());
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    control.dispose();
+    if (url == null) return;
+    await _dep.preferencias.guardarServidorUrl(url);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _elegirAlias() async {
+    if (await mostrarDialogoAlias(context) && mounted) {
+      setState(() {});
+      _avisar('Listo, ahora eres @${_dep.preferencias.alias}');
+    }
+  }
+
+  Future<void> _probarConexion() async {
+    setState(() => _probando = true);
+    try {
+      final version = await _dep.comunidad.probarConexion();
+      if (mounted) _avisar('Conectado. El servidor usa MySQL $version');
+    } on FallaApp catch (f) {
+      if (mounted) _avisar(f.mensaje);
+    } finally {
+      if (mounted) setState(() => _probando = false);
+    }
+  }
+
+  // ---------------------------------------------------------------- Respaldo
 
   Future<void> _exportar() async {
     setState(() => _exportando = true);
@@ -103,6 +178,41 @@ class _AjustesPageState extends State<AjustesPage> {
             value: _dep.preferencias.bloqueoActivo,
             onChanged: _cambiarBloqueo,
           ),
+          const _Seccion('Huellas Comunidad'),
+          ListTile(
+            leading: const Icon(Icons.alternate_email),
+            title: Text(_dep.preferencias.alias == null
+                ? 'Elegir mi alias'
+                : '@${_dep.preferencias.alias}'),
+            subtitle: Text(_dep.preferencias.usuarioRemotoId == null
+                ? 'Sin registrar en este servidor'
+                : 'Usuario #${_dep.preferencias.usuarioRemotoId} en MySQL'),
+            trailing: const Icon(Icons.edit_outlined),
+            onTap: _elegirAlias,
+          ),
+          ListTile(
+            leading: const Icon(Icons.dns_outlined),
+            title: const Text('Servidor'),
+            subtitle: Text(_dep.preferencias.servidorUrl),
+            trailing: const Icon(Icons.edit_outlined),
+            onTap: _editarServidor,
+          ),
+          ListTile(
+            leading: const Icon(Icons.wifi_tethering),
+            title: const Text('Probar conexión'),
+            subtitle: const Text('GET /api/salud'),
+            trailing: _probando
+                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.chevron_right),
+            onTap: _probando ? null : _probarConexion,
+          ),
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('Historial de sincronización'),
+            subtitle: const Text('Tabla en SQLite y archivo plano de bitácora'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, Rutas.sincronizaciones),
+          ),
           const _Seccion('Datos'),
           ListTile(
             leading: const Icon(Icons.data_object),
@@ -125,10 +235,10 @@ class _AjustesPageState extends State<AjustesPage> {
           const AboutListTile(
             icon: Icon(Icons.info_outline),
             applicationName: 'Huellas',
-            applicationVersion: '1.0.0',
-            applicationIcon: Icon(Icons.fingerprint, size: 40),
+            applicationVersion: '2.0.0',
+            applicationIcon: Image(image: AssetImage('assets/images/logo_huellas.png'), width: 48),
             aboutBoxChildren: [
-              Text('Diario personal con foto, dictado por voz y ubicación GPS.\n\n'
+              Text('Diario personal con foto, dictado por voz, ubicación GPS y comunidad web.\n\n'
                   'Proyecto de Programación de Dispositivos Móviles, Universidad Anáhuac Mayab.'),
             ],
             child: Text('Acerca de Huellas'),
