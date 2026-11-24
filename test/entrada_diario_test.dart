@@ -71,6 +71,21 @@ void main() {
     });
   });
 
+  test('los campos del proyecto final viajan en SQLite y JSON', () {
+    final e = completa.copyWith(
+        categoriaId: 1, calificacion: 9, gasto: 250.5, favorita: true, publicar: true, remotoId: 31);
+    final mapa = e.toMap();
+    expect(mapa['favorita'], 1);
+    expect(mapa['remoto_id'], 31);
+    expect(EntradaDiario.fromMap(mapa).toJson(), e.toJson());
+    expect(EntradaDiario.fromJson(e.toJson()).gasto, 250.5);
+    expect(e.publicada, isTrue);
+    final quitada = e.sinPublicar();
+    expect(quitada.remotoId, isNull);
+    expect(quitada.publicar, isFalse);
+    expect(quitada.favorita, isTrue);
+  });
+
   test('el enlace de Google Maps lleva las coordenadas', () {
     final url = completa.ubicacion!.enlaceGoogleMaps.toString();
     expect(url, contains('query=21.2833%2C-89.6667'));
